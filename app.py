@@ -11,7 +11,7 @@ from defusedxml import ElementTree as ET
 # ============================================================
 
 st.set_page_config(
-    page_title="Krutidev to Unicode Converter for Libreoffice",
+    page_title="Krutidev to Unicode Converter",
     page_icon="📄",
     layout="centered"
 )
@@ -707,7 +707,7 @@ def process_odt(
 # ============================================================
 
 st.title(
-    "Krutidev to Unicode Converter for Libreoffice"
+    "Krutidev to Unicode Converter"
 )
 
 
