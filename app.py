@@ -712,7 +712,7 @@ st.title(
 
 
 st.write(
-    "Upload an Libreoffice ODT document to process it."
+    "Upload a Libreoffice ODT document to process it."
 )
 
 
