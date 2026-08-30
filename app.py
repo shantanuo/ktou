@@ -707,7 +707,7 @@ def process_odt(
 # ============================================================
 
 st.title(
-    "ODT Converter"
+    "Krutidev to Unicode Converter for Libreoffice"
 )
 
 
