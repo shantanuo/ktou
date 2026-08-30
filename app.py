@@ -712,7 +712,7 @@ st.title(
 
 
 st.write(
-    "Upload a Libreoffice ODT document to process it. Microsoft Word (.doc) file not allowed"
+    "Upload only Libreoffice document to process it. Microsoft Word (.doc) file not allowed"
 )
 
 
