@@ -433,7 +433,7 @@ def build_replacement_data(user_exclude_words=None):
     exclude_list = [
         item
         for item in combined_exclude_list_all
-        if len(item) > 2
+        if len(item) > 0
     ]
 
     exclude_list_dict = dict(
