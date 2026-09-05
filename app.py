@@ -205,60 +205,73 @@ def process_node(
 # COMPILE REPLACEMENT REGEX
 # ============================================================
 
-def compile_replacement_regex(
-    replacements
-):
 
+def compile_replacement_regex(
+    replacements,
+    excluded_words=None
+):
     normalized = {}
 
     for key, value in replacements.items():
-
         normalized_key = normalize_apostrophes(
             key
         )
-
         normalized[normalized_key] = value
 
+    # Normalize excluded words as well.
+    excluded_words = {
+        normalize_apostrophes(word)
+        for word in (excluded_words or [])
+    }
 
     # Longest keys first.
     #
-    # This is important because, for example:
-    #
-    #     f[kz
-    #
-    # must be considered before:
-    #
-    #     f[k
-    #
-    # to prevent partial matching.
-
+    # For excluded words, require an EXACT WORD MATCH.
+    # This prevents a word such as "for" from matching
+    # inside "Bsfor".
     sorted_keys = sorted(
         normalized.keys(),
         key=len,
         reverse=True
     )
 
-
     if not sorted_keys:
-
         # Prevent re.compile("") from matching
         # every position in the document.
-
         pattern = re.compile(
             r"(?!x)x"
         )
-
     else:
+        pattern_parts = []
+
+        for key in sorted_keys:
+            escaped_key = re.escape(key)
+
+            if key in excluded_words:
+                # Exact word match only.
+                #
+                # Example:
+                #   "for"   -> matches
+                #   "for,"  -> matches
+                #   "(for)" -> matches
+                #   "Bsfor" -> DOES NOT match
+                #   "myfor" -> DOES NOT match
+                #
+                pattern_parts.append(
+                    rf"(?<![A-Za-z0-9_]){escaped_key}(?![A-Za-z0-9_])"
+                )
+            else:
+                # Normal replacement behavior.
+                pattern_parts.append(
+                    escaped_key
+                )
 
         pattern = re.compile(
-            "|".join(
-                re.escape(key)
-                for key in sorted_keys
-            )
+            "|".join(pattern_parts)
         )
 
-
     return pattern, normalized
+
 
 
 # ---------- Replacement logic ----------
@@ -459,7 +472,7 @@ def build_replacement_data(user_exclude_words=None):
 
     replacement_pattern, normalized_replacements = (
         compile_replacement_regex(
-            replacements
+            replacements, exclude_list
         )
     )
 
