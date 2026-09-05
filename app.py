@@ -733,9 +733,9 @@ st.subheader(
 )
 
 user_exclude_text = st.text_area(
-    "Enter your own words, one word per line",
+    "Enter words separated by spaces",
     height=120,
-    placeholder="Example:\nभारत\nमहाराष्ट्र\nमुंबई"
+    placeholder="Example: law and order"
 )
 
 
@@ -781,13 +781,8 @@ if uploaded_file is not None:
                 # -----------------------------------------------
                 # Read user's custom exclusion words.
                 # -----------------------------------------------
-
-                user_exclude_words = [
-                    word.strip()
-                    for word in user_exclude_text.splitlines()
-                    if word.strip()
-                ]
-
+                user_exclude_words = user_exclude_text.split()
+                
                 # -----------------------------------------------
                 # Build replacement data using the built-in
                 # exclusions plus the user's exclusions.
