@@ -414,46 +414,56 @@ exclude_list_all = ["Abdul", "able",  "about", "above",  "abused",  "accepted", 
 # BUILD REPLACEMENT DICTIONARY
 # ============================================================
 
-replacements = dict(
-    zip(
-        myos,
-        myts
+def build_replacement_data(user_exclude_words=None):
+
+    # Start with the original built-in exclusion list.
+    combined_exclude_list_all = list(exclude_list_all)
+
+    # Add words entered by the user for this processing operation.
+    if user_exclude_words:
+        combined_exclude_list_all.extend(user_exclude_words)
+
+    # Remove duplicates while preserving order.
+    combined_exclude_list_all = list(
+        dict.fromkeys(combined_exclude_list_all)
     )
-)
 
+    # Same behavior as before:
+    # only words longer than 2 characters are excluded.
+    exclude_list = [
+        item
+        for item in combined_exclude_list_all
+        if len(item) > 2
+    ]
 
-# Same behavior as your Lambda:
-# only words longer than 2 characters are excluded.
-
-exclude_list = [
-    item
-    for item in exclude_list_all
-    if len(item) > 2
-]
-
-
-exclude_list_dict = dict(
-    zip(
-        exclude_list,
-        exclude_list
+    exclude_list_dict = dict(
+        zip(
+            exclude_list,
+            exclude_list
+        )
     )
-)
 
-
-# Add exclusions to replacement dictionary.
-#
-# This means excluded words map to themselves.
-
-replacements.update(
-    exclude_list_dict
-)
-
-
-replacement_pattern, normalized_replacements = (
-    compile_replacement_regex(
-        replacements
+    # Start with the normal Krutidev -> Unicode replacements.
+    replacements = dict(
+        zip(
+            myos,
+            myts
+        )
     )
-)
+
+    # Add exclusions.
+    # This means excluded words map to themselves.
+    replacements.update(
+        exclude_list_dict
+    )
+
+    replacement_pattern, normalized_replacements = (
+        compile_replacement_regex(
+            replacements
+        )
+    )
+
+    return replacement_pattern, normalized_replacements
 
 
 # ============================================================
@@ -461,7 +471,9 @@ replacement_pattern, normalized_replacements = (
 # ============================================================
 
 def process_odt(
-    input_bytes: bytes
+    input_bytes: bytes,
+    normalized_replacements,
+    replacement_pattern
 ) -> bytes:
 
     """
@@ -716,6 +728,17 @@ st.write(
 )
 
 
+st.subheader(
+    "Words to exclude from conversion"
+)
+
+user_exclude_text = st.text_area(
+    "Enter your own words, one word per line",
+    height=120,
+    placeholder="Example:\nभारत\nमहाराष्ट्र\nमुंबई"
+)
+
+
 uploaded_file = st.file_uploader(
     "Select an ODT file",
     type=["odt"],
@@ -755,8 +778,35 @@ if uploaded_file is not None:
                 "Processing document..."
             ):
 
+                # -----------------------------------------------
+                # Read user's custom exclusion words.
+                # -----------------------------------------------
+
+                user_exclude_words = [
+                    word.strip()
+                    for word in user_exclude_text.splitlines()
+                    if word.strip()
+                ]
+
+                # -----------------------------------------------
+                # Build replacement data using the built-in
+                # exclusions plus the user's exclusions.
+                # -----------------------------------------------
+
+                replacement_pattern, normalized_replacements = (
+                    build_replacement_data(
+                        user_exclude_words
+                    )
+                )
+
+                # -----------------------------------------------
+                # Process
+                # -----------------------------------------------
+
                 output_bytes = process_odt(
-                    input_bytes
+                    input_bytes,
+                    normalized_replacements,
+                    replacement_pattern
                 )
 
 
