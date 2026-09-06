@@ -11,7 +11,7 @@ from defusedxml import ElementTree as ET
 # ============================================================
 
 st.set_page_config(
-    page_title="Krutidev to Unicode Converter",
+    page_title="Krutidev to Unicode File Converter",
     page_icon="📄",
     layout="centered"
 )
@@ -732,7 +732,7 @@ def process_odt(
 # ============================================================
 
 st.title(
-    "Krutidev to Unicode Converter"
+    "Krutidev to Unicode File Converter"
 )
 
 
