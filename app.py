@@ -1088,8 +1088,8 @@ st.write(
     "text in Krutidev font. "
     "Word files are first converted to LibreOffice "
     "ODT format and then processed. "
-    "also available as a Telegram bot: @krutiunicodebot"
-    "streamlit app may not load properly on older systems (for e.g. Ubuntu 14.04)"
+    "also available as a Telegram bot: @krutiunicodebot "
+    "streamlit app may not load properly on older systems (for e.g. Ubuntu 14.04) "
     "In that case use this site http://34.235.45.228"
 )
 
