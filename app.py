@@ -1086,8 +1086,6 @@ st.write(
     "Upload a LibreOffice Writer (.odt) or "
     "Microsoft Word (.doc/.docx) file containing "
     "text in Krutidev font. "
-    "Word files are first converted to LibreOffice "
-    "ODT format and then processed. "
     "also available as a Telegram bot: @krutiunicodebot "
 )
 st.write(
