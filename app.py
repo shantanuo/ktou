@@ -1,6 +1,12 @@
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 import zipfile
+
 from io import BytesIO
+from pathlib import Path
 
 import streamlit as st
 from defusedxml import ElementTree as ET
@@ -40,7 +46,9 @@ def normalize_apostrophes(s: str) -> str:
     if not isinstance(s, str):
         return s
 
-    return s.translate(_translate_apostrophe_table)
+    return s.translate(
+        _translate_apostrophe_table
+    )
 
 
 # ============================================================
@@ -48,7 +56,7 @@ def normalize_apostrophes(s: str) -> str:
 # ============================================================
 
 COMMA_BEFORE_BREAK_RE = re.compile(
-    r",(?=\s|$|[.,;:!?\'\"()])"
+    r",(?=\s|$|[.,;:!?\'\"])"
 )
 
 DOT_BEFORE_BREAK_RE = re.compile(
@@ -187,10 +195,14 @@ def process_node(
 
 
     if node.text:
-        node.text = apply(node.text)
+        node.text = apply(
+            node.text
+        )
 
     if node.tail:
-        node.tail = apply(node.tail)
+        node.tail = apply(
+            node.tail
+        )
 
     for child in node:
 
@@ -205,18 +217,21 @@ def process_node(
 # COMPILE REPLACEMENT REGEX
 # ============================================================
 
-
 def compile_replacement_regex(
     replacements,
     excluded_words=None
 ):
+
     normalized = {}
 
     for key, value in replacements.items():
+
         normalized_key = normalize_apostrophes(
             key
         )
+
         normalized[normalized_key] = value
+
 
     # Normalize excluded words as well.
     excluded_words = {
@@ -224,30 +239,42 @@ def compile_replacement_regex(
         for word in (excluded_words or [])
     }
 
+
     # Longest keys first.
     #
     # For excluded words, require an EXACT WORD MATCH.
+    #
     # This prevents a word such as "for" from matching
     # inside "Bsfor".
+
     sorted_keys = sorted(
         normalized.keys(),
         key=len,
         reverse=True
     )
 
+
     if not sorted_keys:
+
         # Prevent re.compile("") from matching
         # every position in the document.
+
         pattern = re.compile(
             r"(?!x)x"
         )
+
     else:
+
         pattern_parts = []
 
         for key in sorted_keys:
-            escaped_key = re.escape(key)
+
+            escaped_key = re.escape(
+                key
+            )
 
             if key in excluded_words:
+
                 # Exact word match only.
                 #
                 # Example:
@@ -256,24 +283,45 @@ def compile_replacement_regex(
                 #   "(for)" -> matches
                 #   "Bsfor" -> DOES NOT match
                 #   "myfor" -> DOES NOT match
-                #
+
                 pattern_parts.append(
-                    rf"(?<![A-Za-z0-9_]){escaped_key}(?![A-Za-z0-9_])"
+                    rf"(?<![A-Za-z0-9_])"
+                    rf"{escaped_key}"
+                    rf"(?![A-Za-z0-9_])"
                 )
+
             else:
+
                 # Normal replacement behavior.
+
                 pattern_parts.append(
                     escaped_key
                 )
+
 
         pattern = re.compile(
             "|".join(pattern_parts)
         )
 
+
     return pattern, normalized
 
 
-
+# ============================================================
+# KRUTIDEV REPLACEMENT TABLES
+# ============================================================
+#
+# Paste your existing myos and myts arrays here.
+#
+# Do NOT change their order.
+# They must contain the same number of entries.
+#
+# Example:
+#
+# myos = [...]
+# myts = [...]
+#
+# ============================================================
 # ---------- Replacement logic ----------
 
 myos = ["d%", "[k%", "x%", "?k%", "p%", "N%", "t%", ">%", "¥%", "V%", "B%", "M%", "<%", ".k%", "r%", "Fk%", "n%", "/k%", "u%", "i%",
@@ -415,39 +463,150 @@ myts = ["कः", "खः", "गः", "घः", "चः", "छः", "जः", "�
     "द्व", ".", "ः", "य", ",", ";", "द्ध", "रु", "ऋ", ")", "(", "ध्", "/", "रू", ", ", ". ", ": ", " (", ") "]
 
 
-replacements = dict(zip(myos, myts))
-
 #exclude_list = ["No", "ADMN", "Dtd", "Outward", "Dt"]
 
-exclude_list_all = ["Abdul", "able",  "about", "above",  "abused",  "accepted",  "account",  "accused",  "acquisition",  "Act",  "Adult",  "aforesaid",  "Age",  "Aged",  "agreement",  "Agriculturist",  "Ahmed",  "alias",  "All",  "along",  "also",  "alter",  "Amendment",  "amount",  "an",  "and",  "animal",  "animals",  "Ans",  "any",  "anything",  "April",  "are",  "Arms",  "as",  "assault",  "assaulted",  "assembly",  "assure",  "at",  "attempted",  "August",  "bag",  "Bank",  "bar",  "be",  "bearing",  "before",  "being",  "believe",  "belonging",  "between",  "black",  "blows",  "board",  "Bombay",  "Both",  "bound",  "Branch",  "breach",  "breadth",  "break",  "breakfast",  "brick",  "buds",  "bullocks",  "Businessman",  "but",  "by",  "bye",  "cage",  "can",  "capable",  "care",  "carried",  "carries",  "carrying",  "cart",  "Castes",  "cause",  "caused",  "causing",  "certain",  "certificate",  "Certified",  "chain",  "chained",  "Chapter",  "charge",  "Chassis",  "cheated",  "cheating",  "city",  "CLASS",  "Code",  "cognizance",  "Collector",  "Com",  "committed",  "committing",  "common",  "complainant",  "complained",  "complying",  "compound",  "computer",  "condition",  "confined",  "confines",  "consent",  "consequence",  "Contents",  "contract",  "Contractor",  "converted",  "conveys",  "copies",  "cord",  "Corporation",  "councilor",  "counterfeit",  "counterfeited",  "country",  "COURT",  "created",  "criminal",  "Cruelty",  "currency",  "damage",  "date",  "Dated",  "day",  "dead",  "deadly",  "death",  "December",  "deliver",  "demand",  "demanding",  "denomination",  "destroy",  "details",  "deter",  "did",  "direct",  "discharge",  "discharging",  "dishonestly",  "Dist",  "District",  "do",  "document",  "does",  "done",  "dose",  "Dot",  "driver",  "driving",  "duplex",  "duty",  "dwelling",  "dyes",  "either",  "entering",  "entrusted",  "etc",  "execution",  "explained",  "extracts",  "failed",  "fear",  "Fifthly",  "File",  "filthy",  "FIRST",  "fist",  "fists",  "fly",  "follows",  "for",  "force",  "forged",  "fort",  "found",  "four",  "Fourthly",  "from",  "front",  "funds",  "further",  "furtherance",  "Gala",  "gate",  "gave",  "Given",  "Government",  "Govt",  "Gram",  "Green",  "grievous",  "guilty",  "hand",  "have",  "having",  "he",  "heavy",  "height",  "her",  "hereby",  "Hero",  "him",  "his",  "Honda",  "Hotel",  "hours",  "house",  "hrs",  "human",  "hurt",  "IN",  "incident",  "Indian",  "inducing",  "infliction",  "informant",  "injury",  "Inspector",  "instrument",  "Instruments",  "insufficient",  "insulted",  "insurance",  "intending",  "intent",  "intention",  "intentionally",  "interest",  "interested",  "intimidation",  "into",  "iron",  "is",  "issued",  "it",  "its",  "JUDICIAL",  "June",  "keeps",  "kept",  "key",  "Khan",  "kick",  "kill",  "knife",  "knowing",  "knowledge",  "language",  "lat",  "Law",  "lawful",  "laxer",  "length",  "license",  "likely",  "liquor",  "loss",  "Ltd",  "made",  "MAGISTRATE",  "Maharashtra",  "make",  "Manager",  "manner",  "me",  "means",  "measure",  "measures",  "member",  "Mobile",  "more",  "mortgaged",  "Motor",  "movement",  "moving",  "Municipal",  "my",  "Nagpur",  "Name",  "namely",  "near",  "Negotiable",  "No",  "Nos",  "not",  "note",  "notes",  "notice",  "number",  "object",  "obstructed",  "occurrence",  "October",  "OF",  "off",  "office",  "official",  "ok#Gdj]4-euksgj",  "old",  "on",  "one",  "open",  "Opp",  "opportunity",  "or",  "other",  "over",  "owner",  "pain",  "papers",  "part",  "PARTICULAR",  "PARTICULARS",  "party",  "pass",  "passenger",  "Pat",  "Path",  "pay",  "peace",  "Penal",  "permit",  "person",  "persons",  "pipe",  "pipes",  "pk",  "place",  "plead",  "plot",  "Police",  "policy",  "position",  "possessing",  "possession",  "preparations",  "presence",  "prevent",  "Prevention",  "prior",  "produce",  "Prohibition",  "property",  "prosecution",  "protect",  "provocation",  "public",  "punishable",  "purpose",  "purposed",  "put",  "quarter",  "quarters",  "read",  "reason",  "reasonable",  "reasons",  "received",  "receptacle",  "registration",  "removed",  "report",  "reported",  "reputation",  "requirement",  "respect",  "restaurant",  "restraint",  "rioting",  "road",  "robbed",  "robbery",  "room", "running",  "rupees",  "said",  "sale",  "same",  "satisfactorily",  "school",  "seal",  "sealed",  "Sec",  "section",  "security",  "sent",  "September",  "servant",  "Service",  "set",  "shall",  "shop",  "short",  "shown",  "signed",  "situated",  "Slaughter",  "slaughtering",  "some",  "sons",  "space",  "specify",  "square",  "star",  "State",  "Station",  "sticks",  "stipulated",  "subject",  "such",  "suffering",  "sufficiently",  "sun",  "sunrise",  "sword",  "tailoring",  "take",  "taking",  "tethered",  "than",  "That",  "THE",  "theft",  "their",  "them",  "themselves",  "thereby",  "third",  "Thirdly", "threat",  "threatened",  "threatening",  "threats",  "threw",  "through",  "thus",  "time",  "to",  "total",  "town",  "trespass",  "tried",  "trust",  "ts",  "unauthorized",  "under",  "uniform",  "unknown",  "unlawful",  "unnecessary",  "unreasonable",  "unreasonably",  "upon", "use",  "used",  "using",  "valid",  "valuable",  "vehicle",  "Vehicles",  "vernacular",  "village",  "violence",  "voluntarily",  "was",  "weapon",  "weapons",  "well",  "were",  "wheeler",  "whereupon",  "whether",  "which",  "whole",  "whom",  "whose",  "will",  "wine",  "wit",  "with",  "within",  "without",  "wooden",  "work",  "worker",  "worth",  "wrongful",  "years",  "Yes",  "you",  "your"]
+# ============================================================
+# BUILT-IN EXCLUSION LIST
+# ============================================================
 
-
+exclude_list_all = [
+    "Abdul", "able", "about", "above", "abused", "accepted",
+    "account", "accused", "acquisition", "Act", "Adult",
+    "aforesaid", "Age", "Aged", "agreement", "Agriculturist",
+    "Ahmed", "alias", "All", "along", "also", "alter",
+    "Amendment", "amount", "an", "and", "animal", "animals",
+    "Ans", "any", "anything", "April", "are", "Arms", "as",
+    "assault", "assaulted", "assembly", "assure", "at",
+    "attempted", "August", "bag", "Bank", "bar", "be",
+    "bearing", "before", "being", "believe", "belonging",
+    "between", "black", "blows", "board", "Bombay", "Both",
+    "bound", "Branch", "breach", "breadth", "break",
+    "breakfast", "brick", "buds", "bullocks", "Businessman",
+    "but", "by", "bye", "cage", "can", "capable", "care",
+    "carried", "carries", "carrying", "cart", "Castes",
+    "cause", "caused", "causing", "certain", "certificate",
+    "Certified", "chain", "chained", "Chapter", "charge",
+    "Chassis", "cheated", "cheating", "city", "CLASS", "Code",
+    "cognizance", "Collector", "Com", "committed", "committing",
+    "common", "complainant", "complained", "complying",
+    "compound", "computer", "condition", "confined",
+    "confines", "consent", "consequence", "Contents",
+    "contract", "Contractor", "converted", "conveys", "copies",
+    "cord", "Corporation", "councilor", "counterfeit",
+    "counterfeited", "country", "COURT", "created", "criminal",
+    "Cruelty", "currency", "damage", "date", "Dated", "day",
+    "dead", "deadly", "death", "December", "deliver",
+    "demand", "demanding", "denomination", "destroy", "deter",
+    "did", "direct", "discharge", "discharging", "dishonestly",
+    "Dist", "District", "do", "document", "does", "done",
+    "dose", "Dot", "driver", "driving", "duplex", "duty",
+    "dwelling", "dyes", "either", "entering", "entrusted",
+    "etc", "execution", "explained", "extracts", "failed",
+    "fear", "Fifthly", "File", "filthy", "FIRST", "fist",
+    "fists", "fly", "follows", "for", "force", "forged",
+    "fort", "found", "four", "Fourthly", "from", "front",
+    "funds", "further", "furtherance", "Gala", "gate", "gave",
+    "Given", "Government", "Govt", "Gram", "Green", "grievous",
+    "guilty", "hand", "have", "having", "he", "heavy", "height",
+    "her", "hereby", "Hero", "him", "his", "Honda", "Hotel",
+    "hours", "house", "hrs", "human", "hurt", "IN", "incident",
+    "Indian", "inducing", "infliction", "informant", "injury",
+    "Inspector", "instrument", "Instruments", "insufficient",
+    "insulted", "insurance", "intending", "intent", "intention",
+    "intentionally", "interest", "interested", "intimidation",
+    "into", "iron", "is", "issued", "it", "its", "JUDICIAL",
+    "June", "keeps", "kept", "key", "Khan", "kick", "kill",
+    "knife", "knowing", "knowledge", "language", "lat", "Law",
+    "lawful", "laxer", "length", "license", "likely", "liquor",
+    "loss", "Ltd", "made", "MAGISTRATE", "Maharashtra", "make",
+    "Manager", "manner", "me", "means", "measure", "measures",
+    "member", "Mobile", "more", "mortgaged", "Motor",
+    "movement", "moving", "Municipal", "my", "Nagpur", "Name",
+    "namely", "near", "Negotiable", "No", "Nos", "not", "note",
+    "notes", "notice", "number", "object", "obstructed",
+    "occurrence", "October", "OF", "off", "office", "official",
+    "ok#Gdj]4-euksgj", "old", "on", "one", "open", "Opp",
+    "opportunity", "or", "other", "over", "owner", "pain",
+    "papers", "part", "PARTICULAR", "PARTICULARS", "party",
+    "pass", "passenger", "Pat", "Path", "pay", "peace",
+    "Penal", "permit", "person", "persons", "pipe", "pipes",
+    "pk", "place", "plead", "plot", "Police", "policy",
+    "position", "possessing", "possession", "preparations",
+    "presence", "prevent", "Prevention", "prior", "produce",
+    "Prohibition", "property", "prosecution", "protect",
+    "provocation", "public", "punishable", "purpose",
+    "purposed", "put", "quarter", "quarters", "read", "reason",
+    "reasonable", "reasons", "received", "receptacle",
+    "registration", "removed", "report", "reported",
+    "reputation", "requirement", "respect", "restaurant",
+    "restraint", "rioting", "road", "robbed", "robbery", "room",
+    "running", "rupees", "said", "sale", "same",
+    "satisfactorily", "school", "seal", "sealed", "Sec",
+    "section", "security", "sent", "September", "servant",
+    "Service", "set", "shall", "shop", "short", "shown",
+    "signed", "situated", "Slaughter", "slaughtering", "some",
+    "sons", "space", "specify", "square", "star", "State",
+    "Station", "sticks", "stipulated", "subject", "such",
+    "suffering", "sufficiently", "sun", "sunrise", "sword",
+    "tailoring", "take", "taking", "tethered", "than", "That",
+    "THE", "theft", "their", "them", "themselves", "thereby",
+    "third", "Thirdly", "threat", "threatened", "threatening",
+    "threats", "threw", "through", "thus", "time", "to",
+    "total", "town", "trespass", "tried", "trust", "ts",
+    "unauthorized", "under", "uniform", "unknown", "unlawful",
+    "unnecessary", "unreasonable", "unreasonably", "upon",
+    "use", "used", "using", "valid", "valuable", "vehicle",
+    "Vehicles", "vernacular", "village", "violence",
+    "voluntarily", "was", "weapon", "weapons", "well", "were",
+    "wheeler", "whereupon", "whether", "which", "whole",
+    "whom", "whose", "will", "wine", "wit", "with", "within",
+    "without", "wooden", "work", "worker", "worth", "wrongful",
+    "years", "Yes", "you", "your"
+]
 
 # ============================================================
 # BUILD REPLACEMENT DICTIONARY
 # ============================================================
 
-def build_replacement_data(user_exclude_words=None):
+def build_replacement_data(
+    user_exclude_words=None
+):
 
     # Start with the original built-in exclusion list.
-    combined_exclude_list_all = list(exclude_list_all)
 
-    # Add words entered by the user for this processing operation.
+    combined_exclude_list_all = list(
+        exclude_list_all
+    )
+
+
+    # Add words entered by the user for this processing
+    # operation.
+
     if user_exclude_words:
-        combined_exclude_list_all.extend(user_exclude_words)
+
+        combined_exclude_list_all.extend(
+            user_exclude_words
+        )
+
 
     # Remove duplicates while preserving order.
+
     combined_exclude_list_all = list(
-        dict.fromkeys(combined_exclude_list_all)
+        dict.fromkeys(
+            combined_exclude_list_all
+        )
     )
+
 
     # Same behavior as before:
     # only words longer than 2 characters are excluded.
+
     exclude_list = [
         item
         for item in combined_exclude_list_all
         if len(item) > 2
     ]
+
 
     exclude_list_dict = dict(
         zip(
@@ -456,7 +615,10 @@ def build_replacement_data(user_exclude_words=None):
         )
     )
 
-    # Start with the normal Krutidev -> Unicode replacements.
+
+    # Start with the normal Krutidev -> Unicode
+    # replacements.
+
     replacements = dict(
         zip(
             myos,
@@ -464,19 +626,196 @@ def build_replacement_data(user_exclude_words=None):
         )
     )
 
+
     # Add exclusions.
     # This means excluded words map to themselves.
+
     replacements.update(
         exclude_list_dict
     )
 
+
     replacement_pattern, normalized_replacements = (
         compile_replacement_regex(
-            replacements, exclude_list
+            replacements,
+            exclude_list
         )
     )
 
-    return replacement_pattern, normalized_replacements
+
+    return (
+        replacement_pattern,
+        normalized_replacements
+    )
+
+
+# ============================================================
+# LIBREOFFICE DOC/DOCX -> ODT CONVERSION
+# ============================================================
+
+
+def convert_office_to_odt(
+    input_bytes: bytes,
+    filename: str
+) -> bytes:
+
+    """
+    Convert a Microsoft Word .doc or .docx file to ODT
+    using LibreOffice.
+
+    The input and generated ODT are stored only in a temporary
+    directory. The resulting ODT is returned as bytes.
+
+    No S3 or permanent server storage is used.
+    """
+
+    # --------------------------------------------------------
+    # Find LibreOffice executable
+    # --------------------------------------------------------
+
+    soffice_path = shutil.which("soffice")
+
+    if soffice_path is None:
+
+        raise RuntimeError(
+            "LibreOffice (soffice) is not installed "
+            "or is not available in PATH."
+        )
+
+    # --------------------------------------------------------
+    # Create temporary working directory
+    # --------------------------------------------------------
+
+    with tempfile.TemporaryDirectory(
+        prefix="krutidev_"
+    ) as temp_directory:
+
+        temp_dir = Path(temp_directory)
+
+        input_dir = temp_dir / "input"
+        output_dir = temp_dir / "output"
+        profile_dir = temp_dir / "lo-profile"
+
+        input_dir.mkdir()
+        output_dir.mkdir()
+        profile_dir.mkdir()
+
+        # ----------------------------------------------------
+        # Use only the filename, not any path supplied by user
+        # ----------------------------------------------------
+
+        safe_filename = Path(filename).name
+
+        input_file = input_dir / safe_filename
+
+        # ----------------------------------------------------
+        # Save uploaded DOC/DOCX temporarily
+        # ----------------------------------------------------
+
+        input_file.write_bytes(input_bytes)
+
+        # ----------------------------------------------------
+        # LibreOffice command
+        # ----------------------------------------------------
+
+        command = [
+            soffice_path,
+
+            "--headless",
+            "--nologo",
+            "--nodefault",
+            "--nofirststartwizard",
+            "--nolockcheck",
+
+            f"-env:UserInstallation=file://{profile_dir}",
+
+            "--convert-to",
+            "odt",
+
+            "--outdir",
+            str(output_dir),
+
+            str(input_file),
+        ]
+
+        # ----------------------------------------------------
+        # LibreOffice environment
+        # ----------------------------------------------------
+
+        env = os.environ.copy()
+
+        env["HOME"] = str(temp_dir)
+        env["SAL_USE_VCLPLUGIN"] = "svp"
+
+        # ----------------------------------------------------
+        # Run LibreOffice
+        # ----------------------------------------------------
+
+        try:
+
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+
+        except subprocess.TimeoutExpired:
+
+            raise RuntimeError(
+                "LibreOffice conversion timed out "
+                "after 120 seconds."
+            )
+
+        # ----------------------------------------------------
+        # Check LibreOffice return code
+        # ----------------------------------------------------
+
+        if result.returncode != 0:
+
+            raise RuntimeError(
+                "LibreOffice conversion failed.\n\n"
+                f"Return code: {result.returncode}\n\n"
+                f"stdout:\n{result.stdout}\n\n"
+                f"stderr:\n{result.stderr}"
+            )
+
+        # ----------------------------------------------------
+        # Expected ODT file
+        # ----------------------------------------------------
+
+        output_file = (
+            output_dir /
+            f"{input_file.stem}.odt"
+        )
+
+        # ----------------------------------------------------
+        # Verify output
+        # ----------------------------------------------------
+
+        if not output_file.exists():
+
+            files = list(
+                output_dir.iterdir()
+            )
+
+            raise RuntimeError(
+                "LibreOffice returned success, "
+                "but did not create the expected ODT file.\n\n"
+                f"Expected:\n{output_file}\n\n"
+                f"Files found:\n{files}\n\n"
+                f"stdout:\n{result.stdout}\n\n"
+                f"stderr:\n{result.stderr}"
+            )
+
+        # ----------------------------------------------------
+        # Return ODT as bytes
+        # ----------------------------------------------------
+
+        return output_file.read_bytes()
+
 
 
 # ============================================================
@@ -581,6 +920,7 @@ def process_odt(
                 "mimetype"
             )
 
+
             mimetype_info.date_time = (
                 1980,
                 1,
@@ -590,11 +930,14 @@ def process_odt(
                 0
             )
 
+
             mimetype_info.compress_type = (
                 zipfile.ZIP_STORED
             )
 
+
             mimetype_info.create_system = 3
+
 
             zip_out.writestr(
                 mimetype_info,
@@ -612,6 +955,7 @@ def process_odt(
 
 
                 # mimetype has already been written.
+
                 if filename == "mimetype":
                     continue
 
@@ -641,6 +985,7 @@ def process_odt(
 
 
                     # Apply your replacement processing.
+
                     process_node(
                         root,
                         normalized_replacements,
@@ -658,13 +1003,14 @@ def process_odt(
 
 
                 # ---------------------------------------------
-                # Preserve the original ZIP metadata where
+                # Preserve original ZIP metadata where
                 # possible.
                 # ---------------------------------------------
 
                 new_info = zipfile.ZipInfo(
                     filename
                 )
+
 
                 new_info.date_time = (
                     info.date_time
@@ -719,7 +1065,7 @@ def process_odt(
 
 
     # --------------------------------------------------------
-    # Return the resulting ODT bytes
+    # Return resulting ODT bytes
     # --------------------------------------------------------
 
     output_buffer.seek(0)
@@ -737,13 +1083,18 @@ st.title(
 
 
 st.write(
-    "Upload only Libreoffice document to process it. Microsoft Word (.doc) file not allowed"
+    "Upload a LibreOffice Writer (.odt) or "
+    "Microsoft Word (.doc/.docx) file containing "
+    "text in Krutidev font. "
+    "Word files are first converted to LibreOffice "
+    "ODT format and then processed."
 )
 
 
 st.subheader(
     "Words to exclude from conversion"
 )
+
 
 user_exclude_text = st.text_area(
     "Enter words separated by spaces",
@@ -753,8 +1104,12 @@ user_exclude_text = st.text_area(
 
 
 uploaded_file = st.file_uploader(
-    "Select an ODT file",
-    type=["odt"],
+    "Select a document",
+    type=[
+        "odt",
+        "doc",
+        "docx"
+    ],
     accept_multiple_files=False
 )
 
@@ -767,49 +1122,99 @@ if uploaded_file is not None:
 
 
     if st.button(
-        "Process ODT",
+        "Process Document",
         type="primary",
         use_container_width=True
     ):
 
         try:
 
-            # -----------------------------------------------
+            # ------------------------------------------------
             # Read uploaded file directly into memory.
-            # -----------------------------------------------
+            # ------------------------------------------------
 
             input_bytes = (
                 uploaded_file.getvalue()
             )
 
 
-            # -----------------------------------------------
-            # Process
-            # -----------------------------------------------
+            original_name = (
+                uploaded_file.name
+            )
+
+
+            extension = (
+                Path(original_name)
+                .suffix
+                .lower()
+            )
+
+
+            # ------------------------------------------------
+            # Convert DOC/DOCX to ODT
+            #
+            # ODT files skip this step.
+            # ------------------------------------------------
+
+            if extension in (
+                ".doc",
+                ".docx"
+            ):
+
+                with st.spinner(
+                    "Converting Word document to LibreOffice ODT..."
+                ):
+
+                    input_bytes = (
+                        convert_office_to_odt(
+                            input_bytes,
+                            original_name
+                        )
+                    )
+
+
+            elif extension != ".odt":
+
+                raise ValueError(
+                    "Unsupported file type."
+                )
+
+
+            # ------------------------------------------------
+            # Process document
+            # ------------------------------------------------
 
             with st.spinner(
                 "Processing document..."
             ):
 
-                # -----------------------------------------------
+                # --------------------------------------------
                 # Read user's custom exclusion words.
-                # -----------------------------------------------
-                user_exclude_words = user_exclude_text.split()
-                
-                # -----------------------------------------------
-                # Build replacement data using the built-in
-                # exclusions plus the user's exclusions.
-                # -----------------------------------------------
+                # --------------------------------------------
 
-                replacement_pattern, normalized_replacements = (
-                    build_replacement_data(
-                        user_exclude_words
-                    )
+                user_exclude_words = (
+                    user_exclude_text.split()
                 )
 
-                # -----------------------------------------------
-                # Process
-                # -----------------------------------------------
+
+                # --------------------------------------------
+                # Build replacement data using built-in
+                # exclusions plus user's exclusions.
+                # --------------------------------------------
+
+                (
+                    replacement_pattern,
+                    normalized_replacements
+                ) = build_replacement_data(
+                    user_exclude_words
+                )
+
+
+                # --------------------------------------------
+                # Process ODT.
+                #
+                # At this point input_bytes is ALWAYS ODT.
+                # --------------------------------------------
 
                 output_bytes = process_odt(
                     input_bytes,
@@ -818,42 +1223,41 @@ if uploaded_file is not None:
                 )
 
 
-            # -----------------------------------------------
+            # ------------------------------------------------
             # Generate output filename
-            # -----------------------------------------------
+            #
+            # example:
+            #
+            # test.odt
+            #     ->
+            # test_modified.odt
+            #
+            # test.doc
+            #     ->
+            # test_modified.odt
+            #
+            # test.docx
+            #     ->
+            # test_modified.odt
+            # ------------------------------------------------
 
-            original_name = (
-                uploaded_file.name
+            output_name = (
+                Path(original_name).stem
+                + "_modified.odt"
             )
 
 
-            if original_name.lower().endswith(
-                ".odt"
-            ):
-
-                output_name = (
-                    original_name[:-4]
-                    + "_modified.odt"
-                )
-
-            else:
-
-                output_name = (
-                    original_name
-                    + "_modified.odt"
-                )
-
-
-            # -----------------------------------------------
+            # ------------------------------------------------
             # Store result in session state.
             #
             # This keeps the result available if Streamlit
             # reruns the script after a button interaction.
-            # -----------------------------------------------
+            # ------------------------------------------------
 
             st.session_state[
                 "processed_odt"
             ] = output_bytes
+
 
             st.session_state[
                 "processed_filename"
@@ -861,7 +1265,7 @@ if uploaded_file is not None:
 
 
             st.success(
-                "ODT processed successfully."
+                "Document processed successfully."
             )
 
 
@@ -883,16 +1287,21 @@ if (
 
     st.download_button(
         label="⬇️ Download Modified ODT",
+
         data=st.session_state[
             "processed_odt"
         ],
+
         file_name=st.session_state[
             "processed_filename"
         ],
+
         mime=(
             "application/vnd.oasis.opendocument.text"
         ),
+
         type="primary",
+
         use_container_width=True
     )
 
