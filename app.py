@@ -1088,7 +1088,7 @@ st.write(
     "text in Krutidev font. "
     "Word files are first converted to LibreOffice "
     "ODT format and then processed. "
-    "also available as a Telegram bot, <a href=\"https://t.me/krutiunicodebot\">@krutiunicodebot</a>"
+    "also available as a Telegram bot: @krutiunicodebot"
 )
 
 
